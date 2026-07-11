@@ -1,0 +1,17 @@
+{
+  "name": "Grannie's Solitare",
+  "short_name": "Solitare",
+  "description": "A clean, offline Klondike Solitaire game.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f5132",
+  "theme_color": "#166534",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

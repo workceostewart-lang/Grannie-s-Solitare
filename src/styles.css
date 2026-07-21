@@ -45,7 +45,7 @@ button:disabled {
   min-height: 100vh;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(220px, 280px);
-  grid-template-rows: auto auto 1fr;
+  grid-template-rows: auto auto auto 1fr;
   gap: 14px;
   padding: clamp(12px, 2vw, 24px);
   position: relative;
@@ -53,6 +53,7 @@ button:disabled {
 
 .topbar,
 .status-strip,
+.hint-panel,
 .side-panel {
   background: rgba(8, 47, 73, 0.16);
   border: 1px solid var(--line);
@@ -123,6 +124,35 @@ h1 {
 .status-strip strong,
 .stats strong {
   color: #fff;
+}
+
+.hint-panel {
+  grid-column: 1 / 2;
+  border-radius: 8px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  align-items: center;
+  min-height: 50px;
+  padding: 12px;
+  color: rgba(255, 247, 237, 0.88);
+}
+
+.hint-panel strong {
+  display: inline-grid;
+  min-width: 88px;
+  min-height: 30px;
+  place-items: center;
+  border-radius: 8px;
+  background: #fde68a;
+  color: var(--ink);
+  font-size: 0.86rem;
+}
+
+.hint-panel.is-visible {
+  border-color: rgba(253, 230, 138, 0.85);
+  background: rgba(120, 53, 15, 0.24);
+  box-shadow: 0 0 0 1px rgba(253, 230, 138, 0.18), 0 18px 44px rgba(0, 0, 0, 0.18);
 }
 
 .board {
@@ -309,7 +339,7 @@ button.empty-slot {
 
 .side-panel {
   grid-column: 2 / 3;
-  grid-row: 2 / span 2;
+  grid-row: 2 / span 3;
   align-self: start;
   border-radius: 8px;
   display: grid;
@@ -389,6 +419,7 @@ button.empty-slot {
   }
 
   .status-strip,
+  .hint-panel,
   .board,
   .side-panel {
     grid-column: 1 / -1;

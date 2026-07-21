@@ -22,6 +22,12 @@ interface MoveSnapshot {
   reason: string;
 }
 
+interface Hint {
+  from?: Location;
+  to?: Location;
+  message: string;
+}
+
 interface Settings {
   drawMode: DrawMode;
   showTimer: boolean;
@@ -68,7 +74,7 @@ const savedGame = loadGame();
 if (!savedGame) stats.played += 1;
 let state: GameState = savedGame ?? createGame(Date.now());
 let selected: { location: Location; count: number } | null = null;
-let hint: { from: Location; to: Location } | null = null;
+let hint: Hint | null = null;
 let keyboardFocus: Location = { type: "stock" };
 let justWon = false;
 let timerId = 0;
@@ -285,7 +291,7 @@ function canPlaceOnFoundation(card: Card, foundation: Card[]): boolean {
 
 function canPlaceOnTableau(card: Card, tableau: Card[]): boolean {
   const top = tableau.at(-1);
-  return card.faceUp && (!top ? card.rank === 13 : top.faceUp && colorOf(top.suit) !== colorOf(card.suit) && card.rank === top.rank - 1);
+  return card.faceUp && (!top || (top.faceUp && colorOf(top.suit) !== colorOf(card.suit) && card.rank === top.rank - 1));
 }
 
 function canMoveSequence(cards: Card[]): boolean {
@@ -446,6 +452,31 @@ function checkWin(): void {
   stats.bestTime = stats.bestTime === null ? state.elapsed : Math.min(stats.bestTime, state.elapsed);
 }
 
+function locationName(location: Location): string {
+  if (location.type === "stock") return "the stock";
+  if (location.type === "waste") return "the waste pile";
+  if (location.type === "foundation") return `${SUITS[location.index ?? 0]} foundation`;
+  return `column ${(location.index ?? 0) + 1}`;
+}
+
+function moveDescription(cards: Card[], from: Location, to: Location): string {
+  const moving = cards.length === 1 ? cardName(cards[0]) : `${cards.length} cards starting with ${cardName(cards[0])}`;
+  return `Move ${moving} from ${locationName(from)} to ${locationName(to)}.`;
+}
+
+function wouldRevealFaceDownCard(source: Location, count: number): boolean {
+  if (source.type !== "tableau") return false;
+  const column = pileAt(source);
+  const exposedIndex = column.length - count - 1;
+  return exposedIndex >= 0 && !column[exposedIndex].faceUp;
+}
+
+function setHint(nextHint: Hint): void {
+  hint = nextHint;
+  render();
+  announce(nextHint.message);
+}
+
 function findHint(): void {
   const sources: Array<{ location: Location; count: number }> = [];
   if (state.waste.at(-1)) sources.push({ location: { type: "waste" }, count: 1 });
@@ -455,6 +486,10 @@ function findHint(): void {
     });
   });
 
+  const foundationHints: Hint[] = [];
+  const tableauHints: Hint[] = [];
+  const revealHints: Hint[] = [];
+
   for (const source of sources) {
     const cards = pileAt(source.location).slice(-source.count);
     if (!canMoveSequence(cards)) continue;
@@ -462,24 +497,48 @@ function findHint(): void {
       const card = cards[0];
       const foundation: Location = { type: "foundation", index: foundationIndexFor(card.suit) };
       if (canPlaceOnFoundation(card, pileAt(foundation))) {
-        hint = { from: source.location, to: foundation };
-        render();
-        return;
+        foundationHints.push({
+          from: source.location,
+          to: foundation,
+          message: `${moveDescription(cards, source.location, foundation)} This builds your foundation piles.`
+        });
       }
     }
     for (let index = 0; index < 7; index += 1) {
       const destination: Location = { type: "tableau", index };
+      if (sameLocation(source.location, destination)) continue;
       if (canPlaceOnTableau(cards[0], pileAt(destination))) {
-        hint = { from: source.location, to: destination };
-        render();
-        return;
+        const message = `${moveDescription(cards, source.location, destination)} ${
+          wouldRevealFaceDownCard(source.location, source.count)
+            ? "This uncovers a hidden card."
+            : pileAt(destination).length === 0
+              ? "Empty columns are open in easy mode."
+              : "This makes a longer alternating stack."
+        }`;
+        const nextHint = { from: source.location, to: destination, message };
+        if (wouldRevealFaceDownCard(source.location, source.count)) revealHints.push(nextHint);
+        else tableauHints.push(nextHint);
       }
     }
   }
 
-  hint = null;
-  announce("No obvious moves found.");
-  render();
+  const nextHint = revealHints[0] ?? foundationHints[0] ?? tableauHints[0];
+  if (nextHint) {
+    setHint(nextHint);
+    return;
+  }
+
+  if (state.stock.length) {
+    setHint({ from: { type: "stock" }, message: "Draw one card from the stock. There are no board moves right now." });
+    return;
+  }
+
+  if (state.waste.length) {
+    setHint({ from: { type: "stock" }, message: "Recycle the waste pile back into the stock, then draw again." });
+    return;
+  }
+
+  setHint({ message: "No moves are available right now. Try Undo or start a new deal." });
 }
 
 function autoComplete(): void {
@@ -526,7 +585,7 @@ function locationKey(location: Location): string {
 }
 
 function isHint(location: Location): boolean {
-  return !!hint && (locationKey(hint.from) === locationKey(location) || locationKey(hint.to) === locationKey(location));
+  return Boolean(hint && ((hint.from && locationKey(hint.from) === locationKey(location)) || (hint.to && locationKey(hint.to) === locationKey(location))));
 }
 
 function isSelected(location: Location, count: number): boolean {
@@ -574,7 +633,7 @@ function render(): void {
       const cards = column
         .map((card, cardIndex) => cardTemplate(card, { type: "tableau", index: columnIndex }, column.length - cardIndex))
         .join("");
-      return pileTemplate(`Tableau column ${columnIndex + 1}`, { type: "tableau", index: columnIndex }, column, cards || `<div class="empty-slot">K</div>`);
+      return pileTemplate(`Tableau column ${columnIndex + 1}`, { type: "tableau", index: columnIndex }, column, cards || `<div class="empty-slot">Any</div>`);
     })
     .join("");
 
@@ -599,8 +658,14 @@ function render(): void {
         <span>Moves <strong>${state.moves}</strong></span>
         ${settings.showTimer ? `<span>Time <strong data-timer>${formatTime(state.elapsed)}</strong></span>` : ""}
         <span>Draw <strong>${settings.drawMode}</strong></span>
+        <span>Easy <strong>On</strong></span>
         <span>Wins <strong>${stats.won}</strong></span>
         <span>Best <strong>${formatTime(stats.bestTime)}</strong></span>
+      </section>
+
+      <section class="hint-panel ${hint ? "is-visible" : ""}" aria-live="polite">
+        <strong>${hint ? "Hint" : "Easy mode"}</strong>
+        <span>${hint?.message ?? "Draw 1 is on, and empty columns can accept any playable stack."}</span>
       </section>
 
       <section class="board" aria-label="Solitaire board">

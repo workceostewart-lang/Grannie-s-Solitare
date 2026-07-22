@@ -194,18 +194,27 @@ function shuffle(cards: Card[], seed: number): Card[] {
   return result;
 }
 
+function pullCard(deck: Card[], rank: number, color: Color): Card {
+  const index = deck.findIndex((card) => card.rank === rank && colorOf(card.suit) === color);
+  if (index < 0) throw new Error(`Missing ${color} ${rankLabel(rank)} while building easy deal`);
+  return deck.splice(index, 1)[0];
+}
+
+function createEasyTableau(deck: Card[]): Card[][] {
+  const startingRanks = [13, 13, 12, 12, 9, 9, 8];
+
+  return startingRanks.map((startingRank) =>
+    Array.from({ length: 4 }, (_, row) => {
+      const card = pullCard(deck, startingRank - row, row % 2 === 0 ? "red" : "black");
+      card.faceUp = true;
+      return card;
+    })
+  );
+}
+
 function createGame(seed: number): GameState {
   const deck = shuffle(createDeck(), seed);
-  const tableau: Card[][] = Array.from({ length: 7 }, () => []);
-
-  for (let column = 0; column < 7; column += 1) {
-    for (let row = 0; row <= column; row += 1) {
-      const card = deck.shift();
-      if (!card) throw new Error("Deck ended unexpectedly");
-      card.faceUp = row === column;
-      tableau[column].push(card);
-    }
-  }
+  const tableau = createEasyTableau(deck);
 
   const base: GameState = {
     stock: deck,
@@ -665,7 +674,7 @@ function render(): void {
 
       <section class="hint-panel ${hint ? "is-visible" : ""}" aria-live="polite">
         <strong>${hint ? "Hint" : "Easy mode"}</strong>
-        <span>${hint?.message ?? "Draw 1 is on, and empty columns can accept any playable stack."}</span>
+        <span>${hint?.message ?? "Balanced deal is on: every column starts with four red-black-red-black cards, and empty columns accept any playable stack."}</span>
       </section>
 
       <section class="board" aria-label="Solitaire board">

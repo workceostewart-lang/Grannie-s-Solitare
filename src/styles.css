@@ -354,7 +354,7 @@ button.empty-slot {
   font-weight: 700;
 }
 
-.side-panel label:has(input) {
+.side-panel .checkbox-label {
   display: flex;
   align-items: center;
 }

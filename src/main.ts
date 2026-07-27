@@ -174,14 +174,18 @@ function seededRandom(seed: number): () => number {
 }
 
 function createDeck(): Card[] {
-  return SUITS.flatMap((suit) =>
-    Array.from({ length: 13 }, (_, index) => ({
-      id: `${suit}-${index + 1}`,
-      suit,
-      rank: index + 1,
-      faceUp: false
-    }))
-  );
+  const deck: Card[] = [];
+  SUITS.forEach((suit) => {
+    for (let rank = 1; rank <= 13; rank += 1) {
+      deck.push({
+        id: `${suit}-${rank}`,
+        suit,
+        rank,
+        faceUp: false
+      });
+    }
+  });
+  return deck;
 }
 
 function shuffle(cards: Card[], seed: number): Card[] {
@@ -289,17 +293,21 @@ function pileAt(location: Location): Card[] {
   return state.tableau[location.index ?? 0];
 }
 
+function lastCard(cards: Card[]): Card | undefined {
+  return cards[cards.length - 1];
+}
+
 function topCard(location: Location): Card | undefined {
-  return pileAt(location).at(-1);
+  return lastCard(pileAt(location));
 }
 
 function canPlaceOnFoundation(card: Card, foundation: Card[]): boolean {
-  const top = foundation.at(-1);
+  const top = lastCard(foundation);
   return card.faceUp && (!top ? card.rank === 1 : top.suit === card.suit && card.rank === top.rank + 1);
 }
 
 function canPlaceOnTableau(card: Card, tableau: Card[]): boolean {
-  const top = tableau.at(-1);
+  const top = lastCard(tableau);
   return card.faceUp && (!top || (top.faceUp && colorOf(top.suit) !== colorOf(card.suit) && card.rank === top.rank - 1));
 }
 
@@ -357,7 +365,7 @@ function commit(reason: string): void {
 }
 
 function flipExposedTableauCard(column: Card[]): void {
-  const top = column.at(-1);
+  const top = lastCard(column);
   if (top && !top.faceUp) top.faceUp = true;
 }
 
@@ -488,7 +496,7 @@ function setHint(nextHint: Hint): void {
 
 function findHint(): void {
   const sources: Array<{ location: Location; count: number }> = [];
-  if (state.waste.at(-1)) sources.push({ location: { type: "waste" }, count: 1 });
+  if (lastCard(state.waste)) sources.push({ location: { type: "waste" }, count: 1 });
   state.tableau.forEach((column, index) => {
     column.forEach((card, cardIndex) => {
       if (card.faceUp) sources.push({ location: { type: "tableau", index }, count: column.length - cardIndex });
@@ -626,12 +634,12 @@ function render(): void {
     ? `<button class="card face-down stock-card" data-action="draw" aria-label="Draw from stock"><span class="back-mark ${settings.cardBack}"></span></button><span class="pile-count">${state.stock.length}</span>`
     : `<button class="empty-slot" data-action="draw" aria-label="Recycle waste to stock">↻</button>`;
 
-  const wasteTop = state.waste.at(-1);
+  const wasteTop = lastCard(state.waste);
   const wasteBody = wasteTop ? cardTemplate(wasteTop, { type: "waste" }, 1) : `<div class="empty-slot">Waste</div>`;
 
   const foundations = state.foundations
     .map((foundation, index) => {
-      const top = foundation.at(-1);
+      const top = lastCard(foundation);
       const label = `${SUITS[index]} foundation`;
       return pileTemplate(label, { type: "foundation", index }, foundation, top ? cardTemplate(top, { type: "foundation", index }, 1) : `<div class="empty-slot">${suitSymbol(SUITS[index])}</div>`);
     })
@@ -702,8 +710,8 @@ function render(): void {
             <option value="classic" ${settings.cardBack === "classic" ? "selected" : ""}>Classic</option>
           </select>
         </label>
-        <label><input type="checkbox" data-setting="showTimer" ${settings.showTimer ? "checked" : ""} /> Show timer</label>
-        <label><input type="checkbox" data-setting="sound" ${settings.sound ? "checked" : ""} /> Sound</label>
+        <label class="checkbox-label"><input type="checkbox" data-setting="showTimer" ${settings.showTimer ? "checked" : ""} /> Show timer</label>
+        <label class="checkbox-label"><input type="checkbox" data-setting="sound" ${settings.sound ? "checked" : ""} /> Sound</label>
         <div class="stats">
           <span>Played <strong>${stats.played}</strong></span>
           <span>Lost <strong>${stats.lost}</strong></span>

@@ -54,15 +54,25 @@ interface GameState {
   startedAt: number | null;
   isPaused: boolean;
   isWon: boolean;
-  seed: number;
+  roundNumber: number;
+  redealsUsed: number;
   initial: Omit<GameState, "initial" | "history"> | null;
   history: MoveSnapshot[];
 }
+
+const DIFFICULTY_CONFIG = {
+  tiers: {
+    firstThree: { throughRound: 3, solvableDealChance: 1, redealCap: 5 },
+    nextThree: { throughRound: 6, solvableDealChance: 0.5, redealCap: 4 },
+    plateau: { throughRound: Number.POSITIVE_INFINITY, solvableDealChance: 0, redealCap: 3 }
+  }
+} as const;
 
 const SUITS: Suit[] = ["hearts", "diamonds", "clubs", "spades"];
 const STORAGE_KEY = "grannies-solitare-state";
 const SETTINGS_KEY = "grannies-solitare-settings";
 const STATS_KEY = "grannies-solitare-stats";
+const DIFFICULTY_PROGRESS_KEY = "grannies-solitare-difficulty-progress";
 const app = document.querySelector<HTMLDivElement>("#app");
 
 if (!app) throw new Error("App root missing");
@@ -70,9 +80,10 @@ const root = app;
 
 let settings: Settings = loadSettings();
 let stats: Stats = loadStats();
+let difficultyProgress = loadDifficultyProgress();
 const savedGame = loadGame();
 if (!savedGame) stats.played += 1;
-let state: GameState = savedGame ?? createGame(Date.now());
+let state: GameState = savedGame ?? createGame(difficultyProgress.completedRounds + 1);
 let selected: { location: Location; count: number } | null = null;
 let hint: Hint | null = null;
 let keyboardFocus: Location = { type: "stock" };
@@ -164,13 +175,11 @@ function moveKeyboardFocus(direction: "left" | "right" | "up" | "down"): void {
   }
 }
 
-function seededRandom(seed: number): () => number {
-  let value = seed % 2147483647;
-  if (value <= 0) value += 2147483646;
-  return () => {
-    value = (value * 16807) % 2147483647;
-    return (value - 1) / 2147483646;
-  };
+function randomUnit(): number {
+  const values = new Uint32Array(1);
+  if (!globalThis.crypto?.getRandomValues) throw new Error("Non-deterministic random source unavailable");
+  globalThis.crypto.getRandomValues(values);
+  return values[0] / 0x100000000;
 }
 
 function createDeck(): Card[] {
@@ -188,37 +197,104 @@ function createDeck(): Card[] {
   return deck;
 }
 
-function shuffle(cards: Card[], seed: number): Card[] {
-  const random = seededRandom(seed);
-  const result = [...cards];
+function randomIndex(length: number): number {
+  return Math.floor(randomUnit() * length);
+}
+
+function shuffle<T>(items: T[]): T[] {
+  const result = [...items];
   for (let index = result.length - 1; index > 0; index -= 1) {
-    const swap = Math.floor(random() * (index + 1));
+    const swap = randomIndex(index + 1);
     [result[index], result[swap]] = [result[swap], result[index]];
   }
   return result;
 }
 
-function pullCard(deck: Card[], rank: number, color: Color): Card {
-  const index = deck.findIndex((card) => card.rank === rank && colorOf(card.suit) === color);
-  if (index < 0) throw new Error(`Missing ${color} ${rankLabel(rank)} while building easy deal`);
-  return deck.splice(index, 1)[0];
+function difficultyConfigForRound(roundNumber: number) {
+  if (roundNumber <= DIFFICULTY_CONFIG.tiers.firstThree.throughRound) return DIFFICULTY_CONFIG.tiers.firstThree;
+  if (roundNumber <= DIFFICULTY_CONFIG.tiers.nextThree.throughRound) return DIFFICULTY_CONFIG.tiers.nextThree;
+  return DIFFICULTY_CONFIG.tiers.plateau;
 }
 
-function createEasyTableau(deck: Card[]): Card[][] {
-  const startingRanks = [13, 13, 12, 12, 9, 9, 8];
+function randomColumnLengthGroups(): number[][] {
+  const lengths = [1, 2, 3, 4, 5, 6, 7];
 
-  return startingRanks.map((startingRank) =>
-    Array.from({ length: 4 }, (_, row) => {
-      const card = pullCard(deck, startingRank - row, row % 2 === 0 ? "red" : "black");
-      card.faceUp = true;
-      return card;
-    })
-  );
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const groups: number[][] = [[], [], [], []];
+    let failed = false;
+
+    for (const length of shuffle(lengths)) {
+      const eligible = groups.filter((group) => group.reduce((sum, value) => sum + value, 0) + length <= 13);
+      if (!eligible.length) {
+        failed = true;
+        break;
+      }
+      eligible[randomIndex(eligible.length)].push(length);
+    }
+
+    if (!failed && groups.every((group) => group.length > 0)) return groups;
+  }
+
+  return [[7, 6], [5, 4], [3, 2], [1]];
 }
 
-function createGame(seed: number): GameState {
-  const deck = shuffle(createDeck(), seed);
-  const tableau = createEasyTableau(deck);
+function createSolvableDeck(randomizedDeck: Card[]): Card[] {
+  const cardById = new Map(randomizedDeck.map((card) => [card.id, card]));
+  const suitOrder = shuffle(SUITS);
+  const lengthGroups = randomColumnLengthGroups();
+  const tableauColumns: Card[][] = Array.from({ length: 7 }, () => []);
+  const tableauCountBySuit = new Map<Suit, number>();
+
+  suitOrder.forEach((suit, suitIndex) => {
+    let nextRank = 1;
+    for (const length of lengthGroups[suitIndex]) {
+      const segment = Array.from({ length }, (_, offset) => {
+        const card = cardById.get(`${suit}-${nextRank + offset}`);
+        if (!card) throw new Error("Solvable deal card missing");
+        return card;
+      });
+      tableauColumns[length - 1] = segment.reverse();
+      nextRank += length;
+    }
+    tableauCountBySuit.set(suit, nextRank - 1);
+  });
+
+  const stockDrawSequence: Card[] = [];
+  const nextStockRank = new Map<Suit, number>(suitOrder.map((suit) => [suit, (tableauCountBySuit.get(suit) ?? 0) + 1]));
+  while (suitOrder.some((suit) => (nextStockRank.get(suit) ?? 14) <= 13)) {
+    const availableSuits = suitOrder.filter((suit) => (nextStockRank.get(suit) ?? 14) <= 13);
+    const suit = availableSuits[randomIndex(availableSuits.length)];
+    const rank = nextStockRank.get(suit) ?? 14;
+    const card = cardById.get(`${suit}-${rank}`);
+    if (!card) throw new Error("Solvable stock card missing");
+    stockDrawSequence.push(card);
+    nextStockRank.set(suit, rank + 1);
+  }
+
+  const stock =
+    settings.drawMode === 3
+      ? Array.from({ length: stockDrawSequence.length / 3 }, (_, index) => stockDrawSequence.slice(index * 3, index * 3 + 3))
+          .reverse()
+          .reduce<Card[]>((all, group) => all.concat(group), [])
+      : stockDrawSequence.reverse();
+
+  return tableauColumns.reduce<Card[]>((all, column) => all.concat(column), []).concat(stock);
+}
+
+function createGame(roundNumber: number): GameState {
+  const roundConfig = difficultyConfigForRound(roundNumber);
+  const randomizedDeck = shuffle(createDeck());
+  const deck = randomUnit() < roundConfig.solvableDealChance ? createSolvableDeck(randomizedDeck) : randomizedDeck;
+  const tableau: Card[][] = Array.from({ length: 7 }, () => []);
+
+  for (let column = 0; column < 7; column += 1) {
+    for (let row = 0; row <= column; row += 1) {
+      const card = deck.shift();
+      if (!card) throw new Error("Deck ended unexpectedly");
+      card.faceUp = row === column;
+      tableau[column].push(card);
+    }
+  }
 
   const base: GameState = {
     stock: deck,
@@ -230,7 +306,8 @@ function createGame(seed: number): GameState {
     startedAt: Date.now(),
     isPaused: false,
     isWon: false,
-    seed,
+    roundNumber,
+    redealsUsed: 0,
     initial: null,
     history: []
   };
@@ -266,10 +343,21 @@ function loadStats(): Stats {
   }
 }
 
+function loadDifficultyProgress(): { completedRounds: number } {
+  try {
+    const saved = JSON.parse(localStorage.getItem(DIFFICULTY_PROGRESS_KEY) ?? "{}") as { completedRounds?: number };
+    return {
+      completedRounds: Number.isInteger(saved.completedRounds) && (saved.completedRounds ?? 0) >= 0 ? saved.completedRounds ?? 0 : 0
+    };
+  } catch {
+    return { completedRounds: 0 };
+  }
+}
+
 function loadGame(): GameState | null {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "null") as GameState | null;
-    if (!saved || saved.isWon) return null;
+    if (!saved || saved.isWon || !Number.isInteger(saved.roundNumber) || !Number.isInteger(saved.redealsUsed)) return null;
     return { ...saved, startedAt: saved.isPaused ? null : Date.now(), history: saved.history ?? [] };
   } catch {
     return null;
@@ -280,6 +368,7 @@ function saveAll(): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
   localStorage.setItem(STATS_KEY, JSON.stringify(stats));
+  localStorage.setItem(DIFFICULTY_PROGRESS_KEY, JSON.stringify(difficultyProgress));
 }
 
 function foundationIndexFor(suit: Suit): number {
@@ -318,6 +407,14 @@ function canMoveSequence(cards: Card[]): boolean {
     const previous = cards[index - 1];
     return colorOf(previous.suit) !== colorOf(card.suit) && previous.rank === card.rank + 1;
   });
+}
+
+function canMoveFrom(location: Location, cards: Card[]): boolean {
+  if (!cards.length || location.type === "stock") return false;
+  if (location.type === "waste" || location.type === "foundation") {
+    return cards.length === 1 && cards[0].faceUp && topCard(location)?.id === cards[0].id;
+  }
+  return canMoveSequence(cards);
 }
 
 function record(reason: string): void {
@@ -371,15 +468,19 @@ function flipExposedTableauCard(column: Card[]): void {
 
 function drawFromStock(): void {
   if (state.isPaused || state.isWon) return;
-  record("draw");
 
   if (state.stock.length === 0) {
+    const redealCap = difficultyConfigForRound(state.roundNumber).redealCap;
+    if (!state.waste.length || state.redealsUsed >= redealCap) return;
+    record("redeal");
+    state.redealsUsed += 1;
     state.stock = state.waste.reverse().map((card) => ({ ...card, faceUp: false }));
     state.waste = [];
     commit("Recycled waste to stock.");
     return;
   }
 
+  record("draw");
   const drawn = state.stock.splice(-settings.drawMode).reverse().map((card) => ({ ...card, faceUp: true }));
   state.waste.push(...drawn);
   commit(`Drew ${drawn.length} card${drawn.length === 1 ? "" : "s"}.`);
@@ -388,6 +489,7 @@ function drawFromStock(): void {
 function moveCards(from: Location, to: Location, count: number): boolean {
   if (state.isPaused || state.isWon) return false;
   const source = pileAt(from);
+  if (!Number.isInteger(count) || count < 1 || count > source.length) return false;
   const moving = source.slice(-count);
   if (!moving.length) return false;
 
@@ -397,9 +499,10 @@ function moveCards(from: Location, to: Location, count: number): boolean {
   if (samePile) return false;
 
   const valid =
-    to.type === "foundation"
+    canMoveFrom(from, moving) &&
+    (to.type === "foundation"
       ? count === 1 && canPlaceOnFoundation(first, destination) && foundationIndexFor(first.suit) === (to.index ?? -1)
-      : to.type === "tableau" && canMoveSequence(moving) && canPlaceOnTableau(first, destination);
+      : to.type === "tableau" && canPlaceOnTableau(first, destination));
 
   if (!valid) return false;
 
@@ -421,13 +524,19 @@ function autoMove(location: Location): boolean {
 function undo(): void {
   const previous = state.history.pop();
   if (!previous) return;
+  const wasWon = state.isWon;
   const history = state.history;
   state = { ...previous.state, history };
+  if (wasWon && !state.isWon && difficultyProgress.completedRounds > 0) difficultyProgress.completedRounds -= 1;
   selected = null;
   hint = null;
   saveAll();
   render();
   announce(`Undid ${previous.reason}.`);
+}
+
+function completeRound(): void {
+  difficultyProgress.completedRounds += 1;
 }
 
 function newGame(): void {
@@ -436,7 +545,8 @@ function newGame(): void {
     stats.lost += 1;
     stats.streak = 0;
   }
-  state = createGame(Date.now());
+  if (!state.isWon) completeRound();
+  state = createGame(difficultyProgress.completedRounds + 1);
   selected = null;
   hint = null;
   saveAll();
@@ -462,6 +572,7 @@ function checkWin(): void {
   const won = state.foundations.every((foundation) => foundation.length === 13);
   if (!won || state.isWon) return;
   state.isWon = true;
+  completeRound();
   justWon = true;
   stats.won += 1;
   stats.streak += 1;
@@ -743,7 +854,7 @@ function handleSelection(location: Location, count: number): void {
   }
 
   const cards = pileAt(location).slice(-count);
-  if (cards.length && canMoveSequence(cards)) {
+  if (cards.length && canMoveFrom(location, cards)) {
     selected = { location, count };
     render();
   }

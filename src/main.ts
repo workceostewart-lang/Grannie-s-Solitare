@@ -354,10 +354,69 @@ function loadDifficultyProgress(): { completedRounds: number } {
   }
 }
 
+function isStandardKlondikeState(game: GameState): boolean {
+  if (
+    !Array.isArray(game.stock) ||
+    !Array.isArray(game.waste) ||
+    !Array.isArray(game.foundations) ||
+    game.foundations.length !== 4 ||
+    !Array.isArray(game.tableau) ||
+    game.tableau.length !== 7
+  ) {
+    return false;
+  }
+
+  if ([...game.foundations, ...game.tableau].some((pile) => !Array.isArray(pile))) return false;
+
+  const piles = [game.stock, game.waste, ...game.foundations, ...game.tableau];
+  const cards = piles.flat();
+  if (cards.length !== 52) return false;
+
+  const ids = new Set<string>();
+  for (const card of cards) {
+    if (
+      !card ||
+      !SUITS.includes(card.suit) ||
+      !Number.isInteger(card.rank) ||
+      card.rank < 1 ||
+      card.rank > 13 ||
+      card.id !== `${card.suit}-${card.rank}` ||
+      typeof card.faceUp !== "boolean" ||
+      ids.has(card.id)
+    ) {
+      return false;
+    }
+    ids.add(card.id);
+  }
+
+  if (ids.size !== 52) return false;
+  if (game.stock.some((card) => card.faceUp)) return false;
+  if (game.waste.some((card) => !card.faceUp)) return false;
+  if (game.foundations.some((foundation) => foundation.some((card) => !card.faceUp))) return false;
+
+  return game.tableau.every((column) => {
+    let faceUpStarted = false;
+    return column.every((card) => {
+      if (card.faceUp) faceUpStarted = true;
+      return faceUpStarted || !card.faceUp;
+    });
+  });
+}
+
+function hasStandardInitialDeal(game: GameState): boolean {
+  const initial = game.initial;
+  if (!initial || !isStandardKlondikeState(initial as GameState)) return false;
+  return initial.tableau.every((column, index) => column.length === index + 1 && column.at(-1)?.faceUp === true);
+}
+
 function loadGame(): GameState | null {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "null") as GameState | null;
     if (!saved || saved.isWon || !Number.isInteger(saved.roundNumber) || !Number.isInteger(saved.redealsUsed)) return null;
+    if (!isStandardKlondikeState(saved) || !hasStandardInitialDeal(saved)) {
+      localStorage.removeItem(STORAGE_KEY);
+      return null;
+    }
     return { ...saved, startedAt: saved.isPaused ? null : Date.now(), history: saved.history ?? [] };
   } catch {
     return null;
@@ -981,3 +1040,4 @@ window.addEventListener("beforeunload", () => {
   window.clearInterval(timerId);
   saveAll();
 });
+

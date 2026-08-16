@@ -1,4 +1,4 @@
-const CACHE_NAME = "grannies-solitare-v3-ios-compat";
+const CACHE_NAME = "grannies-solitare-v4-gameplay";
 const BASE_URL = new URL(self.registration.scope).pathname;
 const CORE_ASSETS = [BASE_URL, `${BASE_URL}index.html`, `${BASE_URL}manifest.webmanifest`, `${BASE_URL}icon.svg`];
 
@@ -32,3 +32,4 @@ self.addEventListener("fetch", (event) => {
     })
   );
 });
+

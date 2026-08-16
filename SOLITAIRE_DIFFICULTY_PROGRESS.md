@@ -30,8 +30,22 @@
 - [x] Verify the Fantomzone hub route and Solitaire launch path.
   - Files changed: `src/main.js` (verified only; unchanged)
   - Summary: Confirmed the live hub already links Grannie's Solitaire to `https://grannies.fantomzone.app`; no other game entries were changed.
+- [x] Reject legacy saved states that do not use the standard Klondike deal geometry.
+  - Files changed: `src/main.ts`, `SOLITAIRE_DIFFICULTY_PROGRESS.md`
+  - Summary: Diagnosed the live old layout as a persisted legacy game and added a gameplay-only state validation/migration guard that discards invalid saved states and starts a standard deal.
+- [x] Rebuild and inspect the production bundle containing the legacy-state guard.
+  - Files changed: `dist/`
+  - Summary: Generated a new Vite bundle and confirmed the new gameplay logic remains present while the protected pre-existing UI copy is unchanged.
+- [x] Refresh the service-worker cache for the updated production shell.
+  - Files changed: `public/service-worker.js`, `dist/service-worker.js`
+  - Summary: Bumped the cache namespace so browsers discard the cached legacy shell and install the current bundle on the next service-worker update.
+- [x] Reproduce the hub launch and identify the stale-state/cache root cause.
+  - Files changed: none (live verification only)
+  - Summary: Confirmed the hub URL is correct, the old layout came from persisted legacy game state, and the fixed-version service-worker cache could keep serving the prior HTML shell.
 
 ## Skipped or flagged
 
 - The remote branch contains pre-existing visible "Easy" labels and empty-column copy associated with its earlier deal behavior; it was preserved to avoid changing protected UI/accessibility scope during publishing. The gameplay rule itself is now king-only.
 - The first Cloudflare publish served the stale tracked `dist` bundle; the rebuilt `dist/` output is now the deployment artifact. The hub source did not need a routing change.
+- The live browser used a previously saved non-standard game state and a v3 service-worker cache; the migration guard and v4 cache namespace address both without changing the protected UI.
+

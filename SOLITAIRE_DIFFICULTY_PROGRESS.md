@@ -45,6 +45,12 @@
 - [x] Deploy and verify the corrected game through the actual Fantomzone hub card.
   - Files changed: `src/main.ts`, `public/service-worker.js`, `dist/`, `Fantomzone/src/main.js`, `Fantomzone/dist/`
   - Summary: Deployed the migration guard and v4 cache namespace to `granniessolitare`, added an invisible query-only cache bust to the Solitaire hub link, and verified the hub click loads the new bundle with 7 tableau columns containing 1–7 cards.
+- [x] Remove onboarding and make every new deal medium from round 1.
+  - Files changed: `src/main.ts`, `public/service-worker.js`, `SOLITAIRE_DIFFICULTY_PROGRESS.md`
+  - Summary: Replaced the prior easy/transition tiers with one fully random medium config from round 1 using a 3-redeal cap; the new bundle and v5 cache are deployed.
+- [x] Verify the medium-only build through the Fantomzone hub.
+  - Files changed: `Fantomzone/src/main.js`, `Fantomzone/dist/` (published separately)
+  - Summary: Confirmed the hub link uses the invisible medium cache-bust and the live game loads the medium-only bundle with standard 7-pile Klondike geometry.
 
 ## Skipped or flagged
 
@@ -52,4 +58,5 @@
 - The first Cloudflare publish served the stale tracked `dist` bundle; the rebuilt `dist/` output is now the deployment artifact. The hub source did not need a routing change.
 - The live browser used a previously saved non-standard game state and a v3 service-worker cache; the migration guard and v4 cache namespace address both without changing the protected UI.
 - The protected pre-existing visible `Easy`/balanced-deal copy remains in the live UI by design; changing it would violate the gameplay-only and no-UI-change constraint, even though the actual deal and rules now use standard Klondike logic.
+- The follow-up request explicitly supersedes the earlier 1–6 round onboarding behavior; the new medium-only config is intentionally invisible and still does not escalate beyond medium.
 

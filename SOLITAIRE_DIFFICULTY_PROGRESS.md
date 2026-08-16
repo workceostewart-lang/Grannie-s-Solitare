@@ -24,7 +24,14 @@
 - [x] Complete this progress log with changed files, summaries, and any skipped or flagged items.
   - Files changed: `SOLITAIRE_DIFFICULTY_PROGRESS.md`
   - Summary: Recorded implementation summaries and verification notes.
+- [x] Rebuild the tracked production bundle from the updated gameplay source.
+  - Files changed: `dist/`
+  - Summary: Regenerated the Vite bundle so the Cloudflare asset deployment serves the updated gameplay instead of the stale tracked bundle.
+- [x] Verify the Fantomzone hub route and Solitaire launch path.
+  - Files changed: `src/main.js` (verified only; unchanged)
+  - Summary: Confirmed the live hub already links Grannie's Solitaire to `https://grannies.fantomzone.app`; no other game entries were changed.
 
 ## Skipped or flagged
 
 - The remote branch contains pre-existing visible "Easy" labels and empty-column copy associated with its earlier deal behavior; it was preserved to avoid changing protected UI/accessibility scope during publishing. The gameplay rule itself is now king-only.
+- The first Cloudflare publish served the stale tracked `dist` bundle; the rebuilt `dist/` output is now the deployment artifact. The hub source did not need a routing change.

@@ -1,4 +1,4 @@
-const CACHE_NAME = "grannies-solitare-v4-gameplay";
+const CACHE_NAME = "grannies-solitare-v5-medium";
 const BASE_URL = new URL(self.registration.scope).pathname;
 const CORE_ASSETS = [BASE_URL, `${BASE_URL}index.html`, `${BASE_URL}manifest.webmanifest`, `${BASE_URL}icon.svg`];
 

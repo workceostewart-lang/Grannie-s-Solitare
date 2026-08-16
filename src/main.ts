@@ -61,10 +61,11 @@ interface GameState {
 }
 
 const DIFFICULTY_CONFIG = {
-  tiers: {
-    firstThree: { throughRound: 3, solvableDealChance: 1, redealCap: 5 },
-    nextThree: { throughRound: 6, solvableDealChance: 0.5, redealCap: 4 },
-    plateau: { throughRound: Number.POSITIVE_INFINITY, solvableDealChance: 0, redealCap: 3 }
+  medium: {
+    fromRound: 1,
+    throughRound: Number.POSITIVE_INFINITY,
+    solvableDealChance: 0,
+    redealCap: 3
   }
 } as const;
 
@@ -210,10 +211,8 @@ function shuffle<T>(items: T[]): T[] {
   return result;
 }
 
-function difficultyConfigForRound(roundNumber: number) {
-  if (roundNumber <= DIFFICULTY_CONFIG.tiers.firstThree.throughRound) return DIFFICULTY_CONFIG.tiers.firstThree;
-  if (roundNumber <= DIFFICULTY_CONFIG.tiers.nextThree.throughRound) return DIFFICULTY_CONFIG.tiers.nextThree;
-  return DIFFICULTY_CONFIG.tiers.plateau;
+function difficultyConfigForRound(_roundNumber: number) {
+  return DIFFICULTY_CONFIG.medium;
 }
 
 function randomColumnLengthGroups(): number[][] {

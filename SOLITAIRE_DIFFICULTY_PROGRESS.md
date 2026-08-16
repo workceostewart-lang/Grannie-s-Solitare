@@ -42,10 +42,14 @@
 - [x] Reproduce the hub launch and identify the stale-state/cache root cause.
   - Files changed: none (live verification only)
   - Summary: Confirmed the hub URL is correct, the old layout came from persisted legacy game state, and the fixed-version service-worker cache could keep serving the prior HTML shell.
+- [x] Deploy and verify the corrected game through the actual Fantomzone hub card.
+  - Files changed: `src/main.ts`, `public/service-worker.js`, `dist/`, `Fantomzone/src/main.js`, `Fantomzone/dist/`
+  - Summary: Deployed the migration guard and v4 cache namespace to `granniessolitare`, added an invisible query-only cache bust to the Solitaire hub link, and verified the hub click loads the new bundle with 7 tableau columns containing 1–7 cards.
 
 ## Skipped or flagged
 
 - The remote branch contains pre-existing visible "Easy" labels and empty-column copy associated with its earlier deal behavior; it was preserved to avoid changing protected UI/accessibility scope during publishing. The gameplay rule itself is now king-only.
 - The first Cloudflare publish served the stale tracked `dist` bundle; the rebuilt `dist/` output is now the deployment artifact. The hub source did not need a routing change.
 - The live browser used a previously saved non-standard game state and a v3 service-worker cache; the migration guard and v4 cache namespace address both without changing the protected UI.
+- The protected pre-existing visible `Easy`/balanced-deal copy remains in the live UI by design; changing it would violate the gameplay-only and no-UI-change constraint, even though the actual deal and rules now use standard Klondike logic.
 

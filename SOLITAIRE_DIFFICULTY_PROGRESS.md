@@ -17,7 +17,7 @@
   - Summary: Added per-round redeal usage and caps of 5, 4, and 3; Draw 1/Draw 3 behavior is unchanged.
 - [x] Verify and tighten Klondike tableau/foundation/empty-slot legality where current logic was too permissive.
   - Files changed: `src/main.ts`
-  - Summary: Added explicit source-pile and count checks; retained foundation sequencing, alternating-color builds, and king-only empty columns.
+  - Summary: Added explicit source-pile and count checks; enforced foundation sequencing, alternating-color builds, and king-only empty columns.
 - [x] Run focused verification and review the diff for gameplay-only scope compliance.
   - Files changed: `src/main.ts`, `SOLITAIRE_DIFFICULTY_PROGRESS.md`
   - Summary: TypeScript compilation and generated-deal invariant checks passed in the source workspace; remote UI/accessibility and deployment files were preserved.
@@ -27,4 +27,4 @@
 
 ## Skipped or flagged
 
-- The remote branch contains pre-existing UI text associated with its earlier deal behavior; it was preserved to avoid changing protected UI/accessibility scope during publishing.
+- The remote branch contains pre-existing visible "Easy" labels and empty-column copy associated with its earlier deal behavior; it was preserved to avoid changing protected UI/accessibility scope during publishing. The gameplay rule itself is now king-only.

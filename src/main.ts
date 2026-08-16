@@ -397,7 +397,7 @@ function canPlaceOnFoundation(card: Card, foundation: Card[]): boolean {
 
 function canPlaceOnTableau(card: Card, tableau: Card[]): boolean {
   const top = lastCard(tableau);
-  return card.faceUp && (!top || (top.faceUp && colorOf(top.suit) !== colorOf(card.suit) && card.rank === top.rank - 1));
+  return card.faceUp && (!top ? card.rank === 13 : top.faceUp && colorOf(top.suit) !== colorOf(card.suit) && card.rank === top.rank - 1);
 }
 
 function canMoveSequence(cards: Card[]): boolean {

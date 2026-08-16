@@ -51,6 +51,12 @@
 - [x] Verify the medium-only build through the Fantomzone hub.
   - Files changed: `Fantomzone/src/main.js`, `Fantomzone/dist/` (published separately)
   - Summary: Confirmed the hub link uses the invisible medium cache-bust and the live game loads the medium-only bundle with standard 7-pile Klondike geometry.
+- [x] Migrate existing saved deals to the medium-only profile.
+  - Files changed: `src/main.ts`, `public/service-worker.js`, `dist/`, `SOLITAIRE_DIFFICULTY_PROGRESS.md`
+  - Summary: Added a hidden medium profile marker so pre-medium saved deals are discarded once and replaced by a medium deal; v6 cache and the migrated bundle are deployed.
+- [x] Complete live verification after medium migration.
+  - Files changed: none (live verification only)
+  - Summary: Confirmed the Fantomzone click path loads the migration bundle, the v6 cache, and standard 7-pile Klondike geometry.
 
 ## Skipped or flagged
 

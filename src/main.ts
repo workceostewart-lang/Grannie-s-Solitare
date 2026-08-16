@@ -54,6 +54,7 @@ interface GameState {
   startedAt: number | null;
   isPaused: boolean;
   isWon: boolean;
+  difficultyProfile: string;
   roundNumber: number;
   redealsUsed: number;
   initial: Omit<GameState, "initial" | "history"> | null;
@@ -61,6 +62,7 @@ interface GameState {
 }
 
 const DIFFICULTY_CONFIG = {
+  profile: "medium-v1",
   medium: {
     fromRound: 1,
     throughRound: Number.POSITIVE_INFINITY,
@@ -305,6 +307,7 @@ function createGame(roundNumber: number): GameState {
     startedAt: Date.now(),
     isPaused: false,
     isWon: false,
+    difficultyProfile: DIFFICULTY_CONFIG.profile,
     roundNumber,
     redealsUsed: 0,
     initial: null,
@@ -412,6 +415,10 @@ function loadGame(): GameState | null {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "null") as GameState | null;
     if (!saved || saved.isWon || !Number.isInteger(saved.roundNumber) || !Number.isInteger(saved.redealsUsed)) return null;
+    if (saved.difficultyProfile !== DIFFICULTY_CONFIG.profile) {
+      localStorage.removeItem(STORAGE_KEY);
+      return null;
+    }
     if (!isStandardKlondikeState(saved) || !hasStandardInitialDeal(saved)) {
       localStorage.removeItem(STORAGE_KEY);
       return null;
